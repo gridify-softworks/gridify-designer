@@ -1,0 +1,16 @@
+// The global styles of the library (the themes, the density, the text styles), loaded once.
+@use '@gridify/studio/styles';
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    max-height: 100vh;
+}

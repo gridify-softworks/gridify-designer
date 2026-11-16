@@ -1,0 +1,63 @@
+# Gridify Designer: the build on every push to a branch and every pull request, and GitHub Pages from the default branch
+# (Settings > Pages > Build and deployment > Source: GitHub Actions, once). A tag alone builds nothing: the push of its branch
+# builds the same commit.
+name: Build and publish
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publication at a time; a newer push does not stop one that has begun.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # The page of a repository is https://<user>.github.io/<repository>/ (/ for the repository
+      # <user>.github.io); the variable BASE_HREF of the repository says another path (/ for a domain of your own).
+      - name: The path of the page
+        id: page
+        run: |
+          if [ -n "$BASE_HREF" ]; then href="$BASE_HREF"
+          elif [[ "$REPOSITORY" == *.github.io ]]; then href=/
+          else href="/$REPOSITORY/"; fi
+          echo "href=$href" >> "$GITHUB_OUTPUT"
+        env:
+          BASE_HREF: ${{ vars.BASE_HREF }}
+          REPOSITORY: ${{ github.event.repository.name }}
+      - name: Build
+        run: npx ng build --base-href "${{ steps.page.outputs.href }}"
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        with:
+          path: dist/designer/browser
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
